@@ -70,7 +70,24 @@ class M3UCrafterApp:
 
         # Fallback to Tk dialog
         if not folder:
-            folder = filedialog.askdirectory(initialdir=self.last_dir or os.path.expanduser("~"))
+            dir_ = self.last_dir if self.last_dir and os.path.isdir(self.last_dir) else os.path.expanduser("~")
+    
+            # Normalize path for Windows quirks
+            dir_ = os.path.normpath(dir_)
+            
+            # If still rejected, fallback to parent directory
+            if not os.path.exists(dir_):
+                dir_ = os.path.dirname(dir_)
+            if not os.path.isdir(dir_):
+                dir_ = os.path.expanduser("~")
+            
+            print("self.last_dir", self.last_dir, "| using:", dir_)
+            
+            folder = filedialog.askdirectory(
+                parent=self.root,
+                initialdir=dir_,
+                mustexist=True
+            )
 
         if folder:
             self.folder_path.set(folder)
