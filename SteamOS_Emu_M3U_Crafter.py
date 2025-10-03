@@ -3,6 +3,11 @@ import os
 import threading
 import tkinter as tk
 from tkinter import filedialog, scrolledtext, messagebox
+import subprocess
+import sys
+import pathlib
+
+CONFIG_FILE = os.path.expanduser("~/.m3u_crafter_lastdir")
 
 class M3UCrafterApp:
     def __init__(self, root):
@@ -10,8 +15,9 @@ class M3UCrafterApp:
         self.root.title("SteamOS_Emu_M3U_Crafter")
         self.root.geometry("600x400")
 
-        # Selected folder path
-        self.folder_path = tk.StringVar()
+        # Load last folder if exists
+        self.last_dir = self.load_last_dir()
+        self.folder_path = tk.StringVar(value=self.last_dir)
 
         # Folder selection
         tk.Label(root, text="Target Folder:").pack(pady=5)
@@ -21,7 +27,7 @@ class M3UCrafterApp:
         tk.Button(folder_frame, text="Browse", command=self.browse_folder).pack(side="left", padx=5)
 
         # Craft button
-        self.craft_button = tk.Button(root, text="Craft", command=self.start_crafting, state="disabled")
+        self.craft_button = tk.Button(root, text="Craft", command=self.start_crafting, state="normal" if self.last_dir else "disabled")
         self.craft_button.pack(pady=10)
 
         # Status text area
@@ -29,11 +35,48 @@ class M3UCrafterApp:
         self.status_box = scrolledtext.ScrolledText(root, height=10, width=70, state="disabled")
         self.status_box.pack(padx=10, pady=5, fill="both", expand=True)
 
+    def load_last_dir(self):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    return f.read().strip()
+            except:
+                return ""
+        return ""
+
+    def save_last_dir(self, folder):
+        try:
+            with open(CONFIG_FILE, "w") as f:
+                f.write(folder)
+        except:
+            pass
+
     def browse_folder(self):
-        folder = filedialog.askdirectory()
+        folder = None
+        # Try KDE Dolphin chooser if available
+        if sys.platform.startswith("linux") and shutil.which("dolphin"):
+            try:
+                # Dolphin with --chooseDir prints the chosen directory to stdout
+                proc = subprocess.run(
+                    ["dolphin", "--chooseDir", self.last_dir or str(pathlib.Path.home())],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if proc.returncode == 0:
+                    folder = proc.stdout.strip()
+            except Exception as e:
+                self.update_status(f"Falling back to Tk dialog: {e}")
+
+        # Fallback to Tk dialog
+        if not folder:
+            folder = filedialog.askdirectory(initialdir=self.last_dir or os.path.expanduser("~"))
+
         if folder:
             self.folder_path.set(folder)
             self.craft_button.config(state="normal")
+            self.save_last_dir(folder)
+            self.last_dir = folder
 
     def start_crafting(self):
         folder = self.folder_path.get()
